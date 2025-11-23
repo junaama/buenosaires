@@ -26,7 +26,18 @@ loadEnvFile();
 seedPuzzles();
 
 // Storage constants
-const WALLET_STORAGE_DIR = ".data/wallet";
+// Storage constants
+let WALLET_STORAGE_DIR = ".data/wallet";
+
+// Use Railway volume path if available AND it exists
+if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    if (fs.existsSync(process.env.RAILWAY_VOLUME_MOUNT_PATH)) {
+        WALLET_STORAGE_DIR = `${process.env.RAILWAY_VOLUME_MOUNT_PATH}/wallet`;
+        console.log(`Using Railway volume for wallet: ${WALLET_STORAGE_DIR}`);
+    } else {
+        console.log(`Railway volume path set but doesn't exist, using default .data/wallet`);
+    }
+}
 const NETWORK_ID = process.env.NETWORK_ID || "base-sepolia";
 const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
