@@ -324,7 +324,6 @@ export function seedPuzzles() {
                 puzzle.category,
                 puzzle.difficulty
             );
-            console.log(`✅ Seeded puzzle for Day ${puzzle.day}`);
         } catch (error) {
             console.log(`ℹ️  Puzzle for Day ${puzzle.day} already exists`);
         }

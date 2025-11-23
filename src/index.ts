@@ -28,7 +28,13 @@ seedPuzzles();
 // Storage constants
 const WALLET_STORAGE_DIR = ".data/wallet";
 const NETWORK_ID = process.env.NETWORK_ID || "base-sepolia";
-const USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+
+// Pricing configuration (in USDC)
+const ENTRY_FEE_USDC = parseFloat(process.env.ENTRY_FEE_USDC || "0.01");
+const NICE_REWARD_USDC = parseFloat(process.env.NICE_REWARD_USDC || "0.001");
+const NAUGHTY_REWARD_USDC = parseFloat(process.env.NAUGHTY_REWARD_USDC || "0.001");
+const ONRAMP_PRESET_AMOUNT = parseFloat(process.env.ONRAMP_PRESET_AMOUNT || "10");
 
 // CDP Wallet Provider
 let walletProvider: CdpEvmWalletProvider | null = null;
@@ -211,11 +217,8 @@ agent.on("transaction-reference", async (ctx) => {
     userDb.updateUser(senderAddress, { paid: true });
 
     await ctx.sendText(
-        `✅ Payment confirmed!\n` +
-        `🔗 Network: ${transactionRef.networkId as string}\n` +
-        `📄 Hash: ${transactionRef.reference as string}\n\n` +
-        `🎅 Ho Ho Ho! Welcome to the Advent Calendar!\n` +
-        `Type 'Day 1' to start your first puzzle!`
+        `✅ Payment received! Welcome to the Advent Calendar! 🎄\n\n` +
+        `Your first puzzle will be available soon. Check back daily for new puzzles!`
     );
 });
 
@@ -242,7 +245,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
     // --- COMMANDS ---
     if (text === "/help") {
         await ctx.sendText(
-            `🎄 **Advent Agent Commands** 🎄\n\n` +
+            `🎄 Advent Agent Commands 🎄\n\n` +
             `/help - Show this message\n` +
             `/leaderboard - Show top players\n` +
             `/stats - Show your statistics\n` +
@@ -253,7 +256,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
     if (text === "/leaderboard") {
         const topUsers = leaderboardDb.getTopUsers(5);
-        let message = "🏆 **Advent Leaderboard** 🏆\n\n";
+        let message = "🏆 Advent Leaderboard 🏆\n\n";
         if (topUsers.length === 0) {
             message += "No scores yet! Be the first to answer correctly.";
         } else {
@@ -315,15 +318,15 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
                         },
                         assets: ["USDC"],
                         defaultAsset: "USDC",
-                        defaultNetwork: "base-sepolia",
-                        presetFiatAmount: 10,
+                        defaultNetwork: NETWORK_ID as "base-sepolia" | "base-mainnet",
+                        presetFiatAmount: ONRAMP_PRESET_AMOUNT,
                     });
 
                     await ctx.sendText(
-                        `💳 **Buy USDC with Coinbase Onramp**\n\n` +
-                        `Click here to buy USDC with your debit card or bank account:\n` +
+                        `💳 **Get Started for $${ONRAMP_PRESET_AMOUNT}**\n\n` +
+                        `Click here to purchase with your debit card or bank account:\n` +
                         `${onrampUrl}\n\n` +
-                        `After purchasing, send 0.01 USDC to unlock the Advent Calendar!`
+                        `Once complete, you'll automatically unlock the calendar!`
                     );
                     return;
                 } catch (error) {
@@ -336,15 +339,15 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
         // Send payment request
         await ctx.sendText(
-            ` Welcome to the Advent Calendar! 🎄\n\n` +
-            `To unlock 25 days of puzzles and USDC rewards, please send 0.01 USDC.\n\n` +
+            `Welcome to the Advent Calendar! 🎄\n\n` +
+            `Unlock 25 days of puzzles and crypto rewards for just $${ENTRY_FEE_USDC * 100}.\n\n` +
             `I'll send you a payment request now...`
         );
 
         // Create USDC payment request
         // do smaller amount for testing
         const agentAddress = agent.address;
-        const amountInDecimals = .0100 * Math.pow(10, 6); // 0.01 USDC with 6 decimals
+        const amountInDecimals = ENTRY_FEE_USDC * Math.pow(10, 6);
 
         const walletSendCalls = usdcHandler.createUSDCTransferCalls(
             validHex(senderAddress),
@@ -355,7 +358,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
         await ctx.conversation.send(walletSendCalls, ContentTypeWalletSendCalls);
 
         await ctx.sendText(
-            `💡 After completing the transaction, send the transaction reference to confirm your payment!`
+            `💡 Complete the payment and you'll be automatically unlocked!`
         );
 
         return;
@@ -367,13 +370,13 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
         if (choice.includes("nice")) {
             // SAFE OPTION: Send USDC
-            await ctx.sendText("😇 You chose **Nice**! Playing it safe, I see.");
+            await ctx.sendText("😇 Nice choice! You'll receive your reward shortly...");
 
             try {
                 const walletData = await walletProvider!.exportWallet();
-                const amountInDecimals = 0.001 * Math.pow(10, 6); // 0.001 USDC for testing
+                const amountInDecimals = NICE_REWARD_USDC * Math.pow(10, 6);
 
-                console.log(`Sending ${amountInDecimals} USDC (0.001 USDC) to ${senderAddress}...`);
+                console.log(`Sending ${NICE_REWARD_USDC} USDC to ${senderAddress}...`);
 
                 // Encode transfer function call
                 const USDC_ABI = parseAbi([
@@ -395,13 +398,13 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
                 transactionDb.recordTransaction(
                     senderAddress,
-                    user.current_day - 1, // Reward is for the previous day (completed puzzle)
-                    "0.001",
+                    user.current_day - 1,
+                    NICE_REWARD_USDC.toString(),
                     txHash,
                     "USDC"
                 );
 
-                await ctx.sendText(`💸 **Prize Sent!** I've sent you 0.001 USDC.\nTx: https://sepolia.basescan.org/tx/${txHash}`);
+                await ctx.sendText(`💸 Sent! Check your wallet.`);
 
             } catch (error) {
                 console.error("Transfer error:", error);
@@ -410,22 +413,25 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
             // Clear pending state
             userDb.updateUser(senderAddress, { pending_reward_choice: false });
-            await ctx.sendText("Type 'next' for the next puzzle!");
+
+            await ctx.sendText(
+                `� Great! Your next puzzle will unlock tomorrow. Check back then!`
+            );
             return;
 
         } else if (choice.includes("naughty")) {
             // RISKY OPTION: Swap for Memecoin
-            await ctx.sendText("😈 You chose **Naughty**! Let's see what the blockchain has in store for you...");
+            await ctx.sendText("😈 Feeling risky! Let's see what you get...");
 
             // Fetch top tokens from CoinGecko and pick a random one
-            await ctx.sendText("🎲 Rolling the dice...");
+            await ctx.sendText("🎲 Finding you a memecoin...");
 
             // MEMECOIN PATH - Always execute swap for Naughty
-            await ctx.sendText("💰 You're getting a MEMECOIN!");
+
             const topTokens = await getTopBaseTokens(100);
             const memecoin = pickRandomToken(topTokens);
 
-            await ctx.sendText(`🎯 Selected: **$${memecoin.symbol}** (${memecoin.name})!`);
+            await ctx.sendText(`🎯 You're getting $${memecoin.symbol}!`);
 
             // Check for BONUS (if they already hold the token)
             let bonusMultiplier = 1;
@@ -439,7 +445,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
                 if (balance && BigInt(balance as bigint) > 0n) {
                     bonusMultiplier = 2;
-                    await ctx.sendText(`👀 I see you're already a holder of $${memecoin.symbol}! **2x BONUS ACTIVATED!** 🚀`);
+                    await ctx.sendText(`� Bonus! You already hold $${memecoin.symbol} - doubling your reward!`);
                 }
             } catch (e) {
                 console.log("Error checking user balance for bonus:", e);
@@ -447,10 +453,10 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
             // Execute Swap
             try {
-                const amountUSDC = 0.001 * bonusMultiplier; // Base amount * bonus
-                const amountInWei = BigInt(amountUSDC * Math.pow(10, 6)); // USDC has 6 decimals
+                const amountUSDC = NAUGHTY_REWARD_USDC * bonusMultiplier;
+                const amountInWei = BigInt(amountUSDC * Math.pow(10, 6));
 
-                await ctx.sendText(`🔄 Swapping ${amountUSDC} USDC for $${memecoin.symbol}...`);
+                await ctx.sendText(`🔄 Swapping for $${memecoin.symbol}...`);
 
                 // Execute the swap via CDP Action Provider directly
                 if (!cdpWalletActionProvider) {
@@ -465,7 +471,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
                 });
 
                 // The result is usually a string message.
-                await ctx.sendText(`✅ Swap execution initiated!\n\n${result}`);
+                await ctx.sendText(`✅ Done! Check your wallet for $${memecoin.symbol}`);
 
                 transactionDb.recordTransaction(
                     senderAddress,
@@ -477,16 +483,16 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
             } catch (error) {
                 console.error("Swap error:", error);
-                await ctx.sendText("⚠️ Swap failed. I'll send you the USDC instead.");
+                await ctx.sendText("Swap didn't work - sending you the reward directly instead.");
             }
 
             // Clear pending state
             userDb.updateUser(senderAddress, { pending_reward_choice: false });
-            await ctx.sendText("Type 'next' for the next puzzle!");
+            await ctx.sendText(`Nice! Your next puzzle will unlock tomorrow. See you then!`);
             return;
 
         } else {
-            await ctx.sendText("🤔 I didn't catch that. Reply with **'Naughty'** or **'Nice'**!");
+            await ctx.sendText("Please choose: Reply with 'Naughty' or 'Nice'");
             return;
         }
     }
@@ -496,7 +502,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
     const puzzle = puzzleDb.getPuzzle(currentDay);
 
     if (!puzzle) {
-        await ctx.sendText("🎉 You have completed all the puzzles! Merry Christmas!");
+        await ctx.sendText("You have completed all the puzzles! Merry Christmas!");
         return;
     }
 
@@ -505,7 +511,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
     if (!sentRecord) {
         // Send the puzzle
         await ctx.sendText(
-            `🎁 **Day ${currentDay} Puzzle** 🎁\n\n` +
+            `Day ${currentDay} Puzzle\n\n` +
             `${puzzle.question}\n\n` +
             `Reply with your answer!`
         );
@@ -529,18 +535,18 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
         );
 
         const responseTime = (Date.now() - sentRecord.getTime()) / 1000;
-        await ctx.sendText(`✅ **Correct!** You solved Day ${currentDay} in ${responseTime.toFixed(1)} seconds!`);
+        await ctx.sendText(`✅ Correct! You solved Day ${currentDay} in ${responseTime.toFixed(1)} seconds!`);
 
         // Advance to next day
         userDb.updateUser(senderAddress, { current_day: currentDay + 1, pending_reward_choice: true });
 
         // Ask Naughty or Nice
         await ctx.sendText(
-            `🎅 **Ho Ho Ho! Correct!**\n\n` +
-            `Now, you must choose your reward:\n` +
-            `😇 **Nice**: I'll send you **0.001 USDC** (Safe)\n` +
-            `😈 **Naughty**: I'll **swap** that USDC for a random Memecoin (Risk! Could be 10x!)\n\n` +
-            `Reply with 'Nice' or 'Naughty'!`
+            `🎅 Correct!\n\n` +
+            `Choose your reward:\n` +
+            `😇 Nice: Get your reward now (safe)\n` +
+            `😈 Naughty: Swap for a random memecoin (risky, but could 10x!)\n\n` +
+            `Reply: 'Nice' or 'Naughty'`
         );
 
     } else {
@@ -554,7 +560,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
             sentRecord,
             hintsUsed
         );
-        await ctx.sendText("❌ Incorrect. Try again! (Type /hint for a clue)");
+        await ctx.sendText("❌ Not quite! Try again. (Type /hint if you need help)");
     }
 } // Closing brace for handleMessage function
 
