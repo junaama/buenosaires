@@ -205,13 +205,28 @@ agent.on("transaction-reference", async (ctx) => {
     }
     console.log(`Transaction reference from: ${senderAddress}`);
 
-    // The XMTP SDK decodes the transaction reference content type automatically
-    // Content is already the transaction reference object: { networkId, reference }
-    const transactionRef = ctx.message.content as { networkId: string; reference: string };
+    let transactionRef: { networkId: string; reference: string } | null = null;
+    const content = ctx.message.content as any;
+
+    if (content?.networkId && content?.reference) {
+        transactionRef = content;
+    } else if (content?.data?.networkId && content?.data?.reference) {
+        transactionRef = content.data;
+    } else if (content?.transactionReference?.networkId && content?.transactionReference?.reference) {
+        transactionRef = content.transactionReference;
+    } else {
+        // Fallback: try to find it if it's just one level deep in an unknown property
+        // This is risky but might catch edge cases
+        transactionRef = content as any;
+    }
 
     if (!transactionRef || !transactionRef.networkId || !transactionRef.reference) {
         console.error("Invalid transaction reference format");
         console.log("Message content:", ctx.message.content);
+        await ctx.sendText(
+            "❌ Sorry, I couldn't process that payment confirmation. " +
+            "Please ensure you're sending a valid transaction reference."
+        );
         return;
     }
 
