@@ -6,12 +6,14 @@ import {
     CdpEvmWalletProvider,
     CdpEvmWalletActionProvider,
     erc20ActionProvider,
+    onrampActionProvider,
 } from "@coinbase/agentkit";
 import { Agent, validHex } from "@xmtp/agent-sdk";
 import { getTestUrl } from "@xmtp/agent-sdk/debug";
 import { ContentTypeWalletSendCalls } from "@xmtp/content-type-wallet-send-calls";
 import { loadEnvFile } from "./utils/general.js";
-import { USDCHandler, MEMECOIN_NETWORKS } from "./utils/usdc.js";
+import { USDCHandler } from "./utils/usdc.js";
+import { getTopBaseTokens, pickRandomToken, type TokenInfo } from "./utils/tokens.js";
 import type { MessageContext } from "@xmtp/agent-sdk";
 import { userDb, answerDb, puzzleDb, puzzleSendDb, transactionDb, leaderboardDb, hintDb } from "./database.js";
 import { seedPuzzles } from "./seed-puzzles.js";
@@ -33,6 +35,7 @@ let walletProvider: CdpEvmWalletProvider | null = null;
 
 let agentKit: AgentKit | null = null;
 let cdpWalletActionProvider: CdpEvmWalletActionProvider | null = null;
+let onrampProvider: any | null = null;
 
 // USDC Handler
 const usdcHandler = new USDCHandler(NETWORK_ID);
@@ -97,12 +100,18 @@ async function initializeAgentKit() {
 
     cdpWalletActionProvider = cdpEvmWalletActionProvider();
 
+    // Initialize onramp provider if CDP_PROJECT_ID is set
+    if (process.env.CDP_PROJECT_ID) {
+        onrampProvider = onrampActionProvider({ projectId: process.env.CDP_PROJECT_ID });
+    }
+
     agentKit = await AgentKit.from({
         walletProvider,
         actionProviders: [
             erc20ActionProvider(),
             cdpApiActionProvider(),
             cdpWalletActionProvider,
+            ...(onrampProvider ? [onrampProvider] : []),
         ],
     });
 
@@ -249,7 +258,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
             message += "No scores yet! Be the first to answer correctly.";
         } else {
             topUsers.forEach((u: { address: string, correct_answers: number, avg_response_time: number | null }, i: number) => {
-                message += `${i + 1}. ${u.address.slice(0, 6)}...${u.address.slice(-4)} - ${u.correct_answers} ⭐ (${(u.avg_response_time || 0).toFixed(1)}s)\n`;
+                message += `${i + 1}. ${u.address.slice(0, 6)}...${u.address.slice(-4)} - ${u.correct_answers} ⭐ (${(u.avg_response_time || 0).toFixed(1000)}s)\n`;
             });
         }
         await ctx.sendText(message);
@@ -259,8 +268,8 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
     if (text === "/stats") {
         const stats = answerDb.getUserStats(senderAddress);
         await ctx.sendText(
-            `📊 **Your Stats** 📊\n\n` +
-            `⭐ Correct Answers: ${stats.correct_answers}\n` +
+            `📊 Your Stats 📊\n\n` +
+            `⭐ Correct Answers: ${stats.correct_answers || 'None yet'}\n` +
             `⚡ Avg Response Time: ${(stats.avg_response_time || 0).toFixed(1)}s\n` +
             `📅 Current Day: ${user.current_day}`
         );
@@ -293,6 +302,38 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
     // --- STEP 1: GATEKEEPING ---
     if (!user.paid) {
+        // Check if user wants to buy USDC
+        if (text.includes("buy") || text.includes("fund") || text.includes("purchase")) {
+            console.log("User wants to buy USDC");
+            // Generate onramp URL to buy USDC
+            if (onrampProvider) {
+                try {
+                    const walletData = await walletProvider!.exportWallet();
+                    const onrampUrl = await onrampProvider.getOnrampBuyUrl(walletProvider!, {
+                        addresses: {
+                            [walletData.address]: ["base-sepolia"],
+                        },
+                        assets: ["USDC"],
+                        defaultAsset: "USDC",
+                        defaultNetwork: "base-sepolia",
+                        presetFiatAmount: 10,
+                    });
+
+                    await ctx.sendText(
+                        `💳 **Buy USDC with Coinbase Onramp**\n\n` +
+                        `Click here to buy USDC with your debit card or bank account:\n` +
+                        `${onrampUrl}\n\n` +
+                        `After purchasing, send 0.01 USDC to unlock the Advent Calendar!`
+                    );
+                    return;
+                } catch (error) {
+                    console.error("Onramp error:", error);
+                    await ctx.sendText("⚠️ Sorry, I couldn't generate the buy link. Please try again later.");
+                    return;
+                }
+            }
+        }
+
         // Send payment request
         await ctx.sendText(
             `� Welcome to the Advent Calendar! 🎄\n\n` +
@@ -376,14 +417,18 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
             // RISKY OPTION: Swap for Memecoin
             await ctx.sendText("😈 You chose **Naughty**! Let's see what the blockchain has in store for you...");
 
-            // Pick random memecoin
-            const memecoin = MEMECOIN_NETWORKS[Math.floor(Math.random() * MEMECOIN_NETWORKS.length)];
+            // Fetch top tokens from CoinGecko and pick a random one
+            await ctx.sendText("🎲 Fetching top Base tokens...");
+            const topTokens = await getTopBaseTokens(100);
+            const memecoin = pickRandomToken(topTokens);
+
+            await ctx.sendText(`🎯 Selected: **$${memecoin.symbol}** (${memecoin.name})!`);
 
             // Check for BONUS (if they already hold the token)
             let bonusMultiplier = 1;
             try {
                 const balance = await walletProvider!.readContract({
-                    address: memecoin.tokenAddress as `0x${string}`,
+                    address: memecoin.address as `0x${string}`,
                     abi: parseAbi(["function balanceOf(address owner) view returns (uint256)"]),
                     functionName: "balanceOf",
                     args: [senderAddress as `0x${string}`]
@@ -420,7 +465,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
                 // The `agentKit` has `run` method but it takes natural language.
                 // We can try to use `agentKit.run` with a prompt! This is the most "Agentic" way.
 
-                const prompt = `Swap ${amountUSDC} USDC for ${memecoin.symbol} on Base Sepolia. The USDC address is ${USDC_CONTRACT_ADDRESS} and the ${memecoin.symbol} address is ${memecoin.tokenAddress}. Slippage is 5%.`;
+
 
                 // Note: agentKit.run might not be exposed directly in the variable scope if not exported.
                 // It is exported as `agentKit` from `initializeAgentKit`.
@@ -438,7 +483,7 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
                 const result = await cdpWalletActionProvider!.swap(walletProvider!, {
                     fromToken: USDC_CONTRACT_ADDRESS,
-                    toToken: memecoin.tokenAddress,
+                    toToken: memecoin.address,
                     fromAmount: amountInWei.toString(),
                     slippageBps: 500, // 5%
                 });
