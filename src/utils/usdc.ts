@@ -30,16 +30,21 @@ export const USDC_NETWORKS: NetworkConfig[] = [
   },
 ];
 
-// Memecoin configuration
+// Memecoin configuration for Base Sepolia testnet
 export const MEMECOIN_NETWORKS = [
   {
     symbol: "DEGEN",
-    tokenAddress: "0x323e78f94E10C73B2500C1F7a3897B0B6e673", // DEGEN on Base Sepolia
+    tokenAddress: "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed", // DEGEN on Base Sepolia
     networkId: "base-sepolia",
   },
   {
     symbol: "TOSHI",
-    tokenAddress: "0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4", // TOSHI on Base Sepolia
+    tokenAddress: "0xa62d2f01f8e0361b15f9596d5fd339fd00c9f717", // Token on Base Sepolia
+    networkId: "base-sepolia",
+  },
+  {
+    symbol: "BRETT",
+    tokenAddress: "0x3363e87f0723d92685589a4d9a3195d47124dde0", // Token on Base Sepolia
     networkId: "base-sepolia",
   },
 ];
