@@ -2,13 +2,32 @@ import Database from "better-sqlite3";
 import * as path from "path";
 import * as fs from "fs";
 
-// Use Railway volume path if available, otherwise use local .data directory
-const DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || ".data";
+// Use Railway volume path if available AND it exists, otherwise use local .data directory
+// Railway sets RAILWAY_VOLUME_MOUNT_PATH when a volume is attached
+// But the path might not exist during build/seed time, so we check
+let DB_DIR = ".data";
+
+if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    // Check if the volume path actually exists (it won't during railway run commands)
+    if (fs.existsSync(process.env.RAILWAY_VOLUME_MOUNT_PATH)) {
+        DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+        console.log(`Using Railway volume: ${DB_DIR}`);
+    } else {
+        console.log(`Railway volume path set but doesn't exist, using .data directory`);
+    }
+}
+
 const DB_FILE = path.join(DB_DIR, "advent.db");
 
 // Ensure data directory exists
-if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
+// Use recursive: true to create parent directories if needed
+try {
+    if (!fs.existsSync(DB_DIR)) {
+        fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+} catch (error) {
+    console.error(`Failed to create database directory: ${DB_DIR}`, error);
+    throw error;
 }
 
 const db = new Database(DB_FILE);

@@ -5,7 +5,11 @@ nixPkgs = ["nodejs-22_x"]
 cmds = ["yarn install --frozen-lockfile"]
 
 [phases.build]
-cmds = ["yarn build"]
+cmds = [
+    "yarn build",
+    "mkdir -p ${RAILWAY_VOLUME_MOUNT_PATH:-.data}",
+    "yarn seed"
+]
 
 [start]
 cmd = "node dist/index.js"
