@@ -336,8 +336,8 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
         // Send payment request
         await ctx.sendText(
-            `� Welcome to the Advent Calendar! 🎄\n\n` +
-            `To unlock 12 days of puzzles and USDC rewards, please send 0.01 USDC.\n\n` +
+            ` Welcome to the Advent Calendar! 🎄\n\n` +
+            `To unlock 25 days of puzzles and USDC rewards, please send 0.01 USDC.\n\n` +
             `I'll send you a payment request now...`
         );
 
@@ -418,7 +418,10 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
             await ctx.sendText("😈 You chose **Naughty**! Let's see what the blockchain has in store for you...");
 
             // Fetch top tokens from CoinGecko and pick a random one
-            await ctx.sendText("🎲 Fetching top Base tokens...");
+            await ctx.sendText("🎲 Rolling the dice...");
+
+            // MEMECOIN PATH - Always execute swap for Naughty
+            await ctx.sendText("💰 You're getting a MEMECOIN!");
             const topTokens = await getTopBaseTokens(100);
             const memecoin = pickRandomToken(topTokens);
 
@@ -449,33 +452,6 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
 
                 await ctx.sendText(`🔄 Swapping ${amountUSDC} USDC for $${memecoin.symbol}...`);
 
-                // Use CDP Action Provider to Swap
-                // We need to find the action provider instance. 
-                // Since we don't have direct access to the action provider instance here easily without refactoring,
-                // we'll use the wallet provider to send a transaction if we were doing a manual swap, 
-                // but for CDP Trade API we need the action.
-
-                // RE-INITIALIZE AgentKit to get access to actions if needed, OR just use the wallet provider if we can construct the swap tx manually.
-                // However, the requirement is "CDP Trade API". 
-                // The `cdpApiActionProvider` exposes `swap`.
-                // Let's use the `agent` instance if possible, but `agent` is XMTP agent.
-                // `agentKit` is the CDP AgentKit.
-
-                // We need to invoke the swap action. 
-                // The `agentKit` has `run` method but it takes natural language.
-                // We can try to use `agentKit.run` with a prompt! This is the most "Agentic" way.
-
-
-
-                // Note: agentKit.run might not be exposed directly in the variable scope if not exported.
-                // It is exported as `agentKit` from `initializeAgentKit`.
-                // But `initializeAgentKit` returns it. We need to store it globally or pass it.
-                // It is stored in `let agentKit`.
-
-                if (!agentKit) {
-                    await initializeAgentKit();
-                }
-
                 // Execute the swap via CDP Action Provider directly
                 if (!cdpWalletActionProvider) {
                     await initializeAgentKit();
@@ -495,15 +471,13 @@ async function handleMessage(ctx: MessageContext, senderAddress: string, content
                     senderAddress,
                     user.current_day - 1,
                     amountUSDC.toString(),
-                    "SWAP_EXECUTED", // We might not get the hash directly from natural language response easily without parsing
+                    "SWAP_EXECUTED",
                     "SWAP"
                 );
 
             } catch (error) {
                 console.error("Swap error:", error);
                 await ctx.sendText("⚠️ Swap failed. I'll send you the USDC instead.");
-                // Fallback to USDC transfer? Or just fail.
-                // For now, just report error.
             }
 
             // Clear pending state
