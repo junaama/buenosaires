@@ -124,10 +124,19 @@ async function initializeAgentKit() {
     return agentKit;
 }
 
-// Create XMTP Agent
+// Create XMTP Agent with Railway volume support
 const xmtpEnv = process.env.XMTP_ENV as "local" | "dev" | "production" | undefined;
+
+// Custom database path for Railway volume storage
+const customDbPath = (inboxId: string) => {
+    const basePath = process.env.RAILWAY_VOLUME_MOUNT_PATH || '.data';
+    const env = process.env.XMTP_ENV || 'dev';
+    return `${basePath}/${env}-${inboxId.slice(0, 8)}.db3`;
+};
+
 const agent = await Agent.createFromEnv({
     env: xmtpEnv || "production",
+    dbPath: customDbPath,
 });
 
 // Handle incoming text messages

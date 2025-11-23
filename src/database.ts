@@ -2,7 +2,8 @@ import Database from "better-sqlite3";
 import * as path from "path";
 import * as fs from "fs";
 
-const DB_DIR = ".data";
+// Use Railway volume path if available, otherwise use local .data directory
+const DB_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || ".data";
 const DB_FILE = path.join(DB_DIR, "advent.db");
 
 // Ensure data directory exists
