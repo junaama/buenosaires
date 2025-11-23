@@ -26,7 +26,8 @@ export function initializeDatabase() {
       paid BOOLEAN DEFAULT 0,
       current_day INTEGER DEFAULT 1,
       joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      timezone TEXT DEFAULT 'UTC'
+      timezone TEXT DEFAULT 'UTC',
+      pending_reward_choice BOOLEAN DEFAULT 0
     )
   `);
 
@@ -70,6 +71,7 @@ export function initializeDatabase() {
       tx_hash TEXT,
       amount TEXT NOT NULL,
       status TEXT DEFAULT 'pending',
+      reward_type TEXT DEFAULT 'USDC',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       completed_at DATETIME,
       FOREIGN KEY (user_address) REFERENCES users(address)
@@ -122,6 +124,7 @@ export const userDb = {
                 current_day: number;
                 joined_at: string;
                 timezone: string;
+                pending_reward_choice: number;
             }
             | undefined;
     },
@@ -132,7 +135,7 @@ export const userDb = {
             .run(address);
     },
 
-    updateUser(address: string, updates: { paid?: boolean; current_day?: number }) {
+    updateUser(address: string, updates: { paid?: boolean; current_day?: number; pending_reward_choice?: boolean }) {
         const fields: string[] = [];
         const values: any[] = [];
 
@@ -143,6 +146,10 @@ export const userDb = {
         if (updates.current_day !== undefined) {
             fields.push("current_day = ?");
             values.push(updates.current_day);
+        }
+        if (updates.pending_reward_choice !== undefined) {
+            fields.push("pending_reward_choice = ?");
+            values.push(updates.pending_reward_choice ? 1 : 0);
         }
 
         if (fields.length === 0) return;
@@ -160,6 +167,7 @@ export const userDb = {
             current_day: number;
             joined_at: string;
             timezone: string;
+            pending_reward_choice: number;
         }>;
     },
 };
@@ -315,14 +323,15 @@ export const transactionDb = {
         userAddress: string,
         day: number,
         amount: string,
-        txHash?: string
+        txHash?: string,
+        rewardType: string = "USDC"
     ) {
         return db
             .prepare(
-                `INSERT INTO transactions (user_address, day, tx_hash, amount, status)
-        VALUES (?, ?, ?, ?, ?)`
+                `INSERT INTO transactions (user_address, day, tx_hash, amount, status, reward_type)
+        VALUES (?, ?, ?, ?, ?, ?)`
             )
-            .run(userAddress, day, txHash || null, amount, txHash ? "completed" : "pending");
+            .run(userAddress, day, txHash || null, amount, txHash ? "completed" : "pending", rewardType);
     },
 
     updateTransaction(id: number, txHash: string, status: string) {
@@ -343,6 +352,7 @@ export const transactionDb = {
                 tx_hash: string | null;
                 amount: string;
                 status: string;
+                reward_type: string;
                 created_at: string;
                 completed_at: string | null;
             }>;

@@ -30,6 +30,20 @@ export const USDC_NETWORKS: NetworkConfig[] = [
   },
 ];
 
+// Memecoin configuration
+export const MEMECOIN_NETWORKS = [
+  {
+    symbol: "DEGEN",
+    tokenAddress: "0x323e78f94E10C73B2500C1F7a3897B0B6e673", // DEGEN on Base Sepolia
+    networkId: "base-sepolia",
+  },
+  {
+    symbol: "TOSHI",
+    tokenAddress: "0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4", // TOSHI on Base Sepolia
+    networkId: "base-sepolia",
+  },
+];
+
 // ERC20 minimal ABI for balance checking
 const erc20Abi = [
   {
