@@ -1,0 +1,32 @@
+{
+    "name": "advent-agent",
+    "version": "1.0.0",
+    "description": "Advent Calendar Agent with USDC Rewards",
+    "type": "module",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx --watch src/index.ts",
+        "start": "tsx src/index.ts",
+        "seed": "tsx src/seed-puzzles.ts",
+        "wallet": "tsx src/show-wallet.ts"
+    },
+    "dependencies": {
+        "@coinbase/agentkit": "^0.10.3",
+        "@xmtp/agent-sdk": "^1.1.16",
+        "@xmtp/content-type-wallet-send-calls": "^1.0.0",
+        "better-sqlite3": "^11.5.0",
+        "dotenv": "^16.4.5",
+        "node-cron": "^3.0.3",
+        "viem": "^2.21.0"
+    },
+    "devDependencies": {
+        "@types/better-sqlite3": "^7.6.11",
+        "@types/node": "^20.12.7",
+        "@types/node-cron": "^3.0.11",
+        "tsx": "^4.7.2",
+        "typescript": "^5.4.5"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}
